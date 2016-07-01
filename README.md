@@ -13,6 +13,10 @@ To create a single HDF file,
 
 and I'm gonna use it for the training of my neural networks.
 
+#### The structure of HDF 
+If melgram, cqt, stft have been acquired, there would be `f.items() = ['melgram', 'cqt', 'stft']`. 
+Each dataset would be 4-dim numpy array, e.g. `f['melgram'].shape = (1000, 1, 128, 200)` when there is 1000 songs, `1` channel, `n_mels`=128, `n_frame`=200 (same is the formatting in Theano).
+
 #### How to use
 1. Create  or modify [settings.json](https://github.com/keunwoochoi/audio_preprocessor/blob/master/settings.json)
 2. As in the [example.py](https://github.com/keunwoochoi/audio_preprocessor/blob/master/example.py),
