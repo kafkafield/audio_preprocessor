@@ -1,0 +1,50 @@
+{
+    "config": 
+    {
+        "read":
+        {
+            "source_root_path" : "test_music",
+            "exts" : ["wav", "mp3", "aac", "aif", "aiff", "flac"]
+        },
+        "write":
+        {
+            "result_root_path" : "test_music_hdf",
+            "format":"hdf",
+            "name":"dataset"
+        }
+    },
+    "load":
+    {
+        "sr":22010,
+        "offset":0,
+        "duration":2,
+        "mono":true
+    },
+    "transforms": 
+    {   
+        "melgram": 
+        {
+            "n_fft":512,
+            "hop_length":256,
+            "n_mels":128,
+            "logam":true,
+            "normalize":true
+        },
+        "cqt": 
+        {
+            "hop_length":256,
+            "n_bins":96,
+            "bins_per_octave":12,
+            "logam":true,
+            "normalize":true
+        },
+        "stft":
+        {
+            "n_fft":512,
+            "hop_length":256,
+            "logam":true,
+            "normalize":true
+        }
+    },
+    "labels" : ["tags"]
+}
