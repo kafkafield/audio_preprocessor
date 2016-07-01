@@ -1,6 +1,6 @@
 # audio_preprocessor
 
-Under development now
+Under development now. Open for any suggestions.
 
 #### Goal
 To create a single HDF file,
