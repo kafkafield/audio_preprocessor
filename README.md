@@ -4,8 +4,7 @@ Under development now
 
 #### Goal
 To create a single HDF file,
-
-  that contains all the transforms of the audio files,
+..that contains all the transforms of the audio files,
     that are in a certain folder,
 
   where the transforms can be specified w.r.t [librosa](http://librosa.github.io)
