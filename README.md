@@ -12,8 +12,8 @@ To create a single HDF file,
     using multiprocessing.
 
 #### How to use
-1. Create  or modify settings.json
-2. As in the [example.py],
+1. Create  or modify [settings.json](https://github.com/keunwoochoi/audio_preprocessor/blob/master/settings.json)
+2. As in the [example.py](https://github.com/keunwoochoi/audio_preprocessor/blob/master/example.py),
 ```	
 import audio_preprocessor
 
