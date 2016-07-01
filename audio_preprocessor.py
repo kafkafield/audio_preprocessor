@@ -150,9 +150,8 @@ class Audio_Preprocessor():
 		get the all transforms that are specified in settings.json
 
 		'''
-		for transform in self.transforms: # text keys e.g. 'melgram'
-			if transform == 'melgram':
-				self.convert_one_transform(transform)
+		for transform in self.transforms: # text keys e.g. 'melgram'	
+			self.convert_one_transform(transform)
 		return
 
 def convert_one_item(hdf_path, i_data, path, transform, load_args, func, args, kwargs, is_logam=True, is_normalize=True):
@@ -170,5 +169,3 @@ def convert_one_item(hdf_path, i_data, path, transform, load_args, func, args, k
 		X = preprocessing.scale(X)
 	f[transform][i_data, 0, :, :] = X	
 	return
-
-
