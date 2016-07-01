@@ -9,7 +9,9 @@ To create a single HDF file,
 * where the transforms can be specified w.r.t [librosa](http://librosa.github.io)
 * and so as the extensions of audio files
 * with a random order for training,
-* using multiprocessing.
+* using multiprocessing
+
+and I'm gonna use it for the training of my neural networks.
 
 #### How to use
 1. Create  or modify [settings.json](https://github.com/keunwoochoi/audio_preprocessor/blob/master/settings.json)
