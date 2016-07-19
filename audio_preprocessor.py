@@ -1,6 +1,7 @@
 
 import os, sys
 import json
+import csv
 import numpy as np
 from sklearn import preprocessing
 import h5py
@@ -10,14 +11,9 @@ import multiprocessing as mp
 import pdb
 # Constant
 N_JOBS=mp.cpu_count()
-os.environ['OPENBLAS_NUM_THREADS'] = '1' # https://github.com/librosa/librosa/issues/381#issuecomment-229850344
+# os.environ['OPENBLAS_NUM_THREADS'] = '1' # https://github.com/librosa/librosa/issues/381#issuecomment-229850344
 
-#
-# QUESTION: Should deal with variable size input.
-#
-# Perhaps, again, HDF5Tensor is required
-#
-
+# TODO: segment HDF, add logging. and perhaps that's it?
 
 class Audio_Preprocessor():
 	def __init__(self, settings_path=None):
@@ -40,18 +36,16 @@ class Audio_Preprocessor():
 		self.permutations = None
 		self.hdf_path = os.path.join(self.config['write']['result_root_path'], self.config['write']['name']+'.hdf')
 
-	def __getitem__(self, index):
+	def init_paths(self):
 		'''
-		do i need it?
+		search path to set self.paths,
+		and then permute them, store them as in csv, and 
 		'''
-		return self.paths[index]
+		self.__index()
+		self.__get_permutations()
+		self.__save_csv()
 
-	def __iter__(self):
-		'''returns paths'''
-		for path in self.paths:
-			yield path
-
-	def index(self, overwrite=False):
+	def __index(self, overwrite=False):
 		''' 
 		Find every audio file that has allowed extensions (in self.config['read']['exts'] recursively.)
 		Then, store them as a list in self.paths
@@ -79,17 +73,29 @@ class Audio_Preprocessor():
 		self.num_files = len(self.paths)
 		return
 
-	def get_permutations(self):
+	def __get_permutations(self):
 		''' 
-		Shuffle the index. Should add some more 
-		csv? dictionary? ???? 
-
+		Shuffle the index.
 		use sklearn for better valid set.
 		have csv files of [path][labels]
 		'''
 		np.random.seed(1209)
 		self.permutations = np.random.permutation(len(self.paths))
 		return
+
+	def __save_csv(self):
+		csv_path = self.config['read']['permuted_csv_path']
+		with open(csv_path, 'wb') as f_csv:
+			csv_writer = csv.writer(f_csv, delimiter='\t')
+			for path_idx in xrange(len(self.paths)):
+				csv_writer.writerow([self.permutations[path_idx], self.paths[self.permutations[path_idx]]])
+
+	def __gen_permuted_path(self, n_yield=1):
+		csv_path = self.config['read']['permuted_csv_path']
+		with open(csv_path, 'rb') as f_csv:
+			csv_reader = csv.reader(f_csv, delimiter='\t')
+			for row in csv_reader:
+				yield row[1]
 
 	def __open_hdf(self):
 		''' 
@@ -99,7 +105,7 @@ class Audio_Preprocessor():
 			os.mkdir(self.config['write']['result_root_path'])
 		except:
 			if os.path.exists(self.config['write']['result_root_path']):
-				print('... There is already the output folder.')
+				print('... There is already the output folder at %s' % os.path.exists(self.config['write']['result_root_path']))
 				pass
 			else:
 				raise RuntimeError('Failed to create or find the result folder, %s' % self.config['write']['result_root_path'])
@@ -156,6 +162,15 @@ class Audio_Preprocessor():
 
 		transform: string, 'melgram' e.g.
 		'''
+		def store_to_hdf(hdf_handler, idxs, data):
+			''' hdf_handler: actually a dataset handler, which enables a direct writing
+			idxs: tuple, (idx_from, idx_to)
+			data: a list of data to write
+			'''
+			hdf_handler[idxs[0]:idxs[1]] = np.array(data)
+			return
+		''''''
+		# prepare hdf handler, function args,...
 		f = self.__open_hdf()
 		load_args = [self.load['sr'], True, self.load['offset'], self.load['duration'], np.float32]
 		example_x, sr = librosa.load(self.paths[0], *load_args)
@@ -163,32 +178,55 @@ class Audio_Preprocessor():
 		func, args, kwargs = self.__get_args(transform)
 		f.require_dataset(transform, size, dtype=np.float32)
 		f.close()
+		# do the work.
+		n_chunks = 3
+		f = self.__open_hdf()
+		f_write = f[transform]
+		path_iterator = self.__gen_permuted_path()
+		
 		if multiprocessing:
-			Parallel(n_jobs=N_JOBS)(delayed(convert_one_item)(self.hdf_path, i_data, path, transform, load_args, func, args, kwargs, 
-						self.transforms[transform]['logam'], self.transforms[transform]['normalize']) \
-				for i_data, path in enumerate(self.paths))
+			for path_batch_idx in xrange(int(np.ceil(float(len(self.paths))/n_chunks))):
+				idx_from = path_batch_idx*n_chunks
+				idx_to = (path_batch_idx+1)*n_chunks
+				paths_to_process = []
+				for i in range(n_chunks):
+					try:
+						paths_to_process.append(next(path_iterator))
+					except:
+						break
+				
+				transform_results = Parallel(n_jobs=n_chunks)(delayed(convert_one_item)(i_data, audio_path, transform, load_args, func, args, kwargs, 
+											self.transforms[transform]['logam'], self.transforms[transform]['normalize']) \
+										for i_data, audio_path in enumerate(paths_to_process))
+				# print 'ddd', len(transform_results), transform_results[0].shape
+				store_to_hdf(f_write, (idx_from, idx_to), transform_results)
 		else:
 			for i_data, path in enumerate(self.paths):
-				convert_one_item(self.hdf_path, i_data, path, transform, load_args, func, args, kwargs, 
+				transform_result = convert_one_item(i_data, path, transform, load_args, func, args, kwargs, 
 						self.transforms[transform]['logam'], self.transforms[transform]['normalize']) 
+				store_to_hdf(f_write, (i_data, i_data+1), [transform_result])
 		
 	def convert_all(self):
 		'''
 		get the all transforms that are specified in settings.json
 
 		'''
-		for transform in self.transforms: # text keys e.g. 'melgram'
-			self.convert_one_transform(transform)
+		if sys.platform == 'darwin': # for developing purpose
+			for transform in self.transforms: # text keys e.g. 'melgram'
+				if transform != 'melgram':
+					self.convert_one_transform(transform)
+		else:
+			for transform in self.transforms: # text keys e.g. 'melgram'
+				self.convert_one_transform(transform)
 		return
 
 
-def convert_one_item(hdf_path, i_data, path, transform, load_args, func, args, kwargs, is_logam=True, is_normalize=True):
+def convert_one_item(i_data, path, transform, load_args, func, args, kwargs, is_logam=True, is_normalize=True):
 	''' 
 	A function that is called by joblib, and therfore outside the class.
 	It converts the signal AND put the result into the hdf at the hdf_path 
 	'''
 	print('transform:%s for %s' % (transform, path))
-	f = h5py.File(hdf_path, 'r+')
 	x, sr = librosa.load(path, *load_args) # load, always mono
 	X = func(x, *args, **kwargs) # process
 	X = np.abs(X)
@@ -196,5 +234,5 @@ def convert_one_item(hdf_path, i_data, path, transform, load_args, func, args, k
 		X = librosa.logamplitude(X)
 	if is_normalize:
 		X = preprocessing.scale(X)
-	f[transform][i_data, 0, :, :] = X	
-	return
+	X = np.expand_dims(X, axis=0) # to make it (n_channel, n_freq, n_frame) and n_channel==1
+	return X

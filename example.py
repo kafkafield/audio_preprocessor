@@ -5,6 +5,5 @@ import pdb
 
 if __name__=='__main__':
 	nogada = audio_preprocessor.Audio_Preprocessor(settings_path='settings.json')
-	nogada.index()
-	nogada.get_permutations()
+	nogada.init_paths()
 	nogada.convert_all()

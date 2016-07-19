@@ -4,6 +4,7 @@
         "read":
         {
             "source_root_path" : "test_music",
+            "permuted_csv_path":"permuted_path.csv",
             "exts" : ["wav", "mp3", "aac", "aif", "aiff", "flac"]
         },
         "write":
