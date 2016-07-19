@@ -12,6 +12,13 @@ import pdb
 N_JOBS=mp.cpu_count()
 os.environ['OPENBLAS_NUM_THREADS'] = '1' # https://github.com/librosa/librosa/issues/381#issuecomment-229850344
 
+#
+# QUESTION: Should deal with variable size input.
+#
+# Perhaps, again, HDF5Tensor is required
+#
+
+
 class Audio_Preprocessor():
 	def __init__(self, settings_path=None):
 		''' 
@@ -32,6 +39,17 @@ class Audio_Preprocessor():
 		self.num_files = 0
 		self.permutations = None
 		self.hdf_path = os.path.join(self.config['write']['result_root_path'], self.config['write']['name']+'.hdf')
+
+	def __getitem__(self, index):
+		'''
+		do i need it?
+		'''
+		return self.paths[index]
+
+	def __iter__(self):
+		'''returns paths'''
+		for path in self.paths:
+			yield path
 
 	def index(self, overwrite=False):
 		''' 
@@ -64,6 +82,10 @@ class Audio_Preprocessor():
 	def get_permutations(self):
 		''' 
 		Shuffle the index. Should add some more 
+		csv? dictionary? ???? 
+
+		use sklearn for better valid set.
+		have csv files of [path][labels]
 		'''
 		np.random.seed(1209)
 		self.permutations = np.random.permutation(len(self.paths))
@@ -74,13 +96,16 @@ class Audio_Preprocessor():
 		Create or open a new hdf file. 
 		'''		
 		try:
-			os.mkdir(self.config.write['result_root_path'])
+			os.mkdir(self.config['write']['result_root_path'])
 		except:
-			print('... Cant make the output folder')
-			pass
+			if os.path.exists(self.config['write']['result_root_path']):
+				print('... There is already the output folder.')
+				pass
+			else:
+				raise RuntimeError('Failed to create or find the result folder, %s' % self.config['write']['result_root_path'])
 		try:
 			f = h5py.File(self.hdf_path, 'r+')
-		except IOError:
+		except IOError:	
 			f = h5py.File(self.hdf_path, 'w')
 		return f
 
@@ -104,6 +129,8 @@ class Audio_Preprocessor():
 		elif name == 'stft':
 			func = librosa.core.stft
 			args = [dct['n_fft'], dct['hop_length']]
+		else:
+			raise RuntimeError('wrong transform name : %s' % name)
 		return func, args, kwargs
 
 	def __get_size_x(self, name, example_x):
@@ -150,9 +177,10 @@ class Audio_Preprocessor():
 		get the all transforms that are specified in settings.json
 
 		'''
-		for transform in self.transforms: # text keys e.g. 'melgram'	
+		for transform in self.transforms: # text keys e.g. 'melgram'
 			self.convert_one_transform(transform)
 		return
+
 
 def convert_one_item(hdf_path, i_data, path, transform, load_args, func, args, kwargs, is_logam=True, is_normalize=True):
 	''' 
@@ -163,6 +191,7 @@ def convert_one_item(hdf_path, i_data, path, transform, load_args, func, args, k
 	f = h5py.File(hdf_path, 'r+')
 	x, sr = librosa.load(path, *load_args) # load, always mono
 	X = func(x, *args, **kwargs) # process
+	X = np.abs(X)
 	if is_logam:
 		X = librosa.logamplitude(X)
 	if is_normalize:
